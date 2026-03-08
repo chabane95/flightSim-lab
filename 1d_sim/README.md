@@ -5,6 +5,12 @@ Diese README beschreibt die erste sinnvolle Minimalversion eines Raketen-Simulat
 Ziel:
 **Hoehe, Geschwindigkeit und Masse ueber die Zeit simulieren**, um den dynamischen Kern des Raketenflugs zu verstehen.
 
+## Dokumentation
+
+Fuer eine ausfuehrliche technische Zusammenfassung (Projektstand, Modellgleichungen, Aenderungen, Validierung, Test-Coverage) siehe:
+
+- [doc.md](/Users/aminechabane/Desktop/rocket1D/doc.md)
+
 ## 1) Projektumfang (Version 1)
 
 Dieses erste Modell ist absichtlich einfach:

@@ -1,5 +1,4 @@
 import numpy as np
-import animation
 
 g = 9.81
 A = 0.02
@@ -25,6 +24,7 @@ p0 = 101325.0      # Pa
 Ae = 0.003         # m^2, Beispiel
 pe = 120000.0      # Pa, Beispielwert
 
+
 def mdot(t, m):
     if m <= m_dry:
         return 0.0
@@ -40,33 +40,31 @@ def mdot(t, m):
     else:
         return -beta * ((t_b - t) / t_fall)
 
-def zdot(v):
-    return v
+
+def xdot(vx):
+    return vx
+def zdot(vz):
+    return vz
 
 def rho_atm(z):
     # realistic atmospheric. 
     z_eff = max(0.0, z) # effektive height
     return rho0*np.exp(-z_eff/H) 
 
-#def thrust(t, m):
-#    m_dot = mdot(t, m)
-#    return -u_e * m_dot
 
 def p_atm(z):
     z_eff = max(0.0, z)
     return p0 * np.exp(-z_eff / H)
-
 # better model for the thrust=Schub. 
 def thrust(t, m, z):
     m_dot = mdot(t, m)
     if m_dot == 0.0:
         return 0.0
-    
     momentum_thrust = -u_e * m_dot
     pressure_thrust = (pe - p_atm(z)) * Ae
     return momentum_thrust + pressure_thrust
 
-def vdot(v, m, t, z):
+def vxdot(v, m, t, z):
     T = thrust(t, m, z) # thrust. 
     rho_loc = rho_atm(z)
     drag = -0.5 * Cd * rho_loc * A * v * abs(v)
@@ -118,8 +116,6 @@ def solver(z0, v0, m0, dt, max_iter):
 
 def main():
     t, z, v, m = solver(z0, v0, m0, dt, max_iter)
-    _ani = animation.animate_rocket(dt, t, z, v, m)
-
 
 if __name__ == "__main__":
     main()
