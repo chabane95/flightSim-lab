@@ -2,7 +2,6 @@ import numpy as np
 
 g = 9.81
 A = 0.02
-rho = 1.225
 Cd = 0.6
 u_e = 250.0
 
@@ -27,6 +26,7 @@ Ae = 0.003         # m^2, Beispiel
 pe = 120000.0      # Pa, Beispielwert
 
 theta = 10 # grad from vertical
+theta_rad = np.deg2rad(theta)
 
 def mdot(t, m):
     if m <= m_dry:
@@ -43,11 +43,6 @@ def mdot(t, m):
     else:
         return -beta * ((t_b - t) / t_fall)
 
-def xdot(vx):
-    return vx
-
-def zdot(vz):
-    return vz
 
 def rho_atm(z):
     # realistic atmospheric. 
@@ -61,47 +56,46 @@ def p_atm(z):
 
 # better model for the thrust=Schub.
  
-def thrust(t, m, z):
-    m_dot = mdot(t, m)
+def thrust_from_mdot(m_dot, z):
     if m_dot == 0.0:
         return 0.0
     momentum_thrust = -u_e * m_dot
     pressure_thrust = (pe - p_atm(z)) * Ae
     return momentum_thrust + pressure_thrust
 
-def v_abs(vx, vz):
-    return np.sqrt(vx**2 + vz**2)
+def rhs(t, y):
+    # This function dy/dt = f(t,y) where y = (x, z, vx, vz, m)
+    x, z, vx, vz, m = y
 
-def Fd_x(z ,vx, vz):
+    m_eff = max(m_dry, m)
+    m_dot = mdot(t, m_eff)
+    T = thrust_from_mdot(m_dot, z)
+
+    v = np.sqrt(vx**2 + vz**2)
     rho_loc = rho_atm(z)
-    return  (-0.5 * Cd * rho_loc * A * vx * v_abs(vx, vz))
- 
-def Fd_z(z,vx,vz):
-    rho_loc = rho_atm(z)
-    return (-0.5 * Cd * rho_loc * A * vz * v_abs(vx, vz))
-    
 
-def vxdot(vx, vz, m, t, z, theta):
-    T = thrust(t, m, z) # thrust. 
-    theta_rad = np.deg2rad(theta)
-    return (T * np.sin(theta_rad) + Fd_x(z, vx, vz)) / m 
+    Fdx = -0.5 * Cd * rho_loc * A * vx * v
+    Fdz = -0.5 * Cd * rho_loc * A * vz * v
 
-def vzdot(vx, vz, m, t, z, theta):
-    T = thrust(t, m, z)
-    theta_rad = np.deg2rad(theta)
-    return (T * np.cos(theta_rad) - m * g + Fd_z(z, vx, vz)) / m
+    dxdt = vx
+    dzdt = vz
+    dvxdt = (T * np.sin(theta_rad) + Fdx) / m_eff
+    dvzdt = (T * np.cos(theta_rad) + Fdz) / m_eff - g
+    dmdt = m_dot
 
-def euler_step(x, x_dot, dt):
-    return x + dt * x_dot
+    return np.array([dxdt, dzdt, dvxdt, dvzdt, dmdt], dtype=float)
+
+def rk4_step(t, y, dt):
+    k1 = rhs(t, y)
+    k2 = rhs(t + 0.5 * dt, y + 0.5 * dt * k1)
+    k3 = rhs(t + 0.5 * dt, y + 0.5 * dt * k2)
+    k4 = rhs(t + dt, y + dt * k3)
+    return y + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 
 def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
     t = 0.0
-    x = x0
-    z = z0
-    vx = vx0
-    vz = vz0
-    m = m0
+    y = np.array([x0, z0, vx0, vz0, m0], dtype=float)
 
     t_values = []
     x_values = []
@@ -111,11 +105,7 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
     m_values = []
 
     for _ in range(max_iter):
-        x_dot = xdot(vx)
-        z_dot = zdot(vz)
-        m_dot = mdot(t, m)
-        vx_dot = vxdot(vx, vz, m, t, z, theta)
-        vz_dot = vzdot(vx, vz, m, t, z, theta)
+        x, z, vx, vz, m = y
 
         t_values.append(t)
         x_values.append(x)
@@ -124,22 +114,29 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
         vz_values.append(vz)
         m_values.append(m)
 
-        x_new = euler_step(x, x_dot, dt)
-        z_new = euler_step(z, z_dot, dt)
-        vx_new = euler_step(vx, vx_dot, dt)
-        vz_new = euler_step(vz, vz_dot, dt)
-        m_new = euler_step(m, m_dot, dt)
-
-        x = x_new
-        z = z_new
-        vx = vx_new
-        vz = vz_new
-        m = max(m_dry, m_new)
-        t = t + dt
+        y_new = rk4_step(t, y, dt)
+        y_new[4] = max(m_dry, y_new[4])
+        t_new = t + dt
 
         # Stop once it returns to ground.
-        if z <= 0.0 and t > 0.5 and vz < 0.0:
+        if y[1] > 0.0 and y_new[1] <= 0.0 and t_new > 0.5 and y_new[3] < 0.0:
+            alpha = y[1] / (y[1] - y_new[1])
+            alpha = float(np.clip(alpha, 0.0, 1.0))
+            y_impact = y + alpha * (y_new - y)
+            y_impact[1] = 0.0
+            y_impact[4] = max(m_dry, y_impact[4])
+            t_impact = t + alpha * dt
+
+            t_values.append(t_impact)
+            x_values.append(y_impact[0])
+            z_values.append(y_impact[1])
+            vx_values.append(y_impact[2])
+            vz_values.append(y_impact[3])
+            m_values.append(y_impact[4])
             break
+
+        y = y_new
+        t = t_new
 
     return (
         np.array(t_values),
