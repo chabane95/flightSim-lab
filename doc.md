@@ -1,6 +1,6 @@
 # Rocket1D - Projektbewertung und Aenderungsdokumentation
 
-Stand: Working Tree vom 2026-03-08 (lokal, nicht committed)
+Stand: Working Tree vom 2026-03-13 (lokal, nicht committed)
 
 ## 0) Ausfuehrliche Gesamtzusammenfassung
 
@@ -148,7 +148,7 @@ Risiken / offene Punkte:
 - `mdot`-Ramp startet bei $t=0$ mit Nullschub, dadurch kann es am Start kurz zu negativem $a$ kommen.
 - Aktuell wird nur `z, v, m` gespeichert; `a` und `T` fehlen als direkte Output-Zeitreihen.
 - Keine automatischen Tests oder Parameter-Validierung im Runtime-Pfad.
-- `rho = 1.225` ist noch als Konstante vorhanden, wird aber nicht mehr direkt genutzt.
+- Fuer 2D fehlen noch automatisierte Regressionstests (`2d_sim` ist aktuell manuell validiert).
 
 ## 2) Aktuelles physikalisches Modell (LaTeX)
 
@@ -267,3 +267,52 @@ Interpretation:
 - `a(t)` und `T(t)` explizit speichern/plotten.
 - Parameter in eine Konfigurationsdatei auslagern.
 - Unit-Tests fuer `mdot`, `thrust`, `rho_atm`, Stop-Kriterium.
+
+## 6) Wichtige neue Aenderungen (2D-Ausbau, 2026-03-13)
+
+## 6.1 [2d_sim/main.py](/Users/aminechabane/Desktop/rocket1D/2d_sim/main.py)
+
+- Von 1D-artigem Entwurf auf echten 2D-Zustandsvektor umgestellt:
+  - `y = (x, z, vx, vz, m)`
+  - zentrale rechte Seite `rhs(t, y)`
+- Kritischen Solver-Fehler entfernt:
+  - kein falscher `vdot(...)`-Pfad mehr
+  - Dynamik wird nur noch ueber 2D-Zustandsableitungen gerechnet
+- Integrator auf RK4 umgestellt:
+  - `rk4_step(...)` mit `k1..k4`
+  - Euler-Schritt nicht mehr als aktiver Integrator
+- Schubstruktur bereinigt:
+  - `thrust_from_mdot(m_dot, z)` eingefuehrt
+  - `mdot` wird in `rhs` einmal berechnet und direkt weitergereicht
+- Winkelbehandlung korrigiert:
+  - `theta` als Grad von der Vertikalen
+  - Umrechnung auf `theta_rad = np.deg2rad(theta)`
+- Bodenkontakt numerisch sauber gemacht:
+  - Ground-Crossing wird per linearer Interpolation auf `z = 0` gesetzt
+  - finaler Impact-Zustand wird explizit in den Zeitreihen gespeichert
+- Rueckgabe erweitert fuer 2D:
+  - `t, x, z, vx, vz, m`
+- Unnoetige Konstante `rho` entfernt (es wird `rho_atm(z)` genutzt)
+
+## 6.2 [2d_sim/animation.py](/Users/aminechabane/Desktop/rocket1D/2d_sim/animation.py) (neu)
+
+- Animation aus `main.py` in eigenes Modul ausgelagert (analog 1D-Stil)
+- Neue Funktion:
+  - `animate_rocket(dt, t, x, z, vx, vz, m)`
+- Visualisierung:
+  - linkes Panel: 2D-Trajektorie (Rocket + Trail)
+  - rechtes Panel: Hoehe ueber Zeit `z(t)` mit laufendem Marker
+  - Live-Overlay fuer `t`, `vx`, `vz`, `m`
+- Darstellung verbessert:
+  - `ax.set_aspect("equal", adjustable="box")` fuer unverzerrte Bahn
+- Frame-Logik analog zum 1D-Projekt:
+  - `frame_step = max(1, int(0.02 / dt))`
+  - `FuncAnimation(..., interval=20, blit=True, repeat=False)`
+
+## 6.3 Aufrufstruktur (wie im 1D-Projekt)
+
+- `main()` in `2d_sim/main.py` importiert das Modul lokal:
+  - `import animation`
+- Simulation + Animation werden direkt gekoppelt:
+  - `t, x, z, vx, vz, m = solver(...)`
+  - `_ani = animation.animate_rocket(dt, t, x, z, vx, vz, m)`
