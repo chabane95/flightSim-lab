@@ -1,4 +1,5 @@
 import numpy as np
+import wind
 
 g = 9.81
 A = 0.02
@@ -18,14 +19,19 @@ vz0 = 0.0
 m0 = 10.0
 
 m_dry = 6.0
-rho0 = 1.225      # kg/m^3 am Boden
-H = 8500.0        # scale height [m]
-
 p0 = 101325.0      # Pa
+T0 = 288.15        # K
+R_air = 287.05     # J/(kg K)
+gamma_air = 1.4
+lapse_rate = 0.0065
+troposphere_top = 11000.0
+T_tropopause = T0 - lapse_rate * troposphere_top
+P_tropopause = p0 * (T_tropopause / T0) ** (g / (R_air * lapse_rate))
+
 Ae = 0.003         # m^2, Beispiel
 pe = 120000.0      # Pa, Beispielwert
 
-theta = 10 # grad from vertical
+theta = 10.0  # degrees from vertical, positive toward +x
 theta_rad = np.deg2rad(theta)
 
 def mdot(t, m):
@@ -44,38 +50,146 @@ def mdot(t, m):
         return -beta * ((t_b - t) / t_fall)
 
 
+def atmosphere_state(z):
+    z_eff = max(0.0, z)
+
+    if z_eff <= troposphere_top:
+        temperature = T0 - lapse_rate * z_eff
+        pressure = p0 * (temperature / T0) ** (g / (R_air * lapse_rate))
+    else:
+        temperature = T_tropopause
+        pressure = P_tropopause * np.exp(
+            -g * (z_eff - troposphere_top) / (R_air * temperature)
+        )
+
+    density = pressure / (R_air * temperature)
+    sound_speed = np.sqrt(gamma_air * R_air * temperature)
+    return {
+        "temperature": temperature,
+        "pressure": pressure,
+        "density": density,
+        "sound_speed": sound_speed,
+    }
+
+
+def temperature_atm(z):
+    return atmosphere_state(z)["temperature"]
+
+
 def rho_atm(z):
-    # realistic atmospheric. 
-    z_eff = max(0.0, z) # effektive height
-    return rho0*np.exp(-z_eff/H) 
+    return atmosphere_state(z)["density"]
 
 
 def p_atm(z):
-    z_eff = max(0.0, z)
-    return p0 * np.exp(-z_eff / H)
+    return atmosphere_state(z)["pressure"]
+
+
+def sound_speed_atm(z):
+    return atmosphere_state(z)["sound_speed"]
+
+
+def drag_coefficient(mach):
+    if mach < 0.8:
+        return Cd
+    if mach < 1.05:
+        alpha = (mach - 0.8) / 0.25
+        return Cd + alpha * (0.9 - Cd)
+    if mach < 1.3:
+        alpha = (mach - 1.05) / 0.25
+        return 0.9 + alpha * (0.75 - 0.9)
+    if mach < 2.0:
+        alpha = (mach - 1.3) / 0.7
+        return 0.75 + alpha * (0.6 - 0.75)
+    return 0.6
 
 # better model for the thrust=Schub.
  
-def thrust_from_mdot(m_dot, z):
+def thrust_from_mdot(m_dot, z, pressure=None):
     if m_dot == 0.0:
         return 0.0
+    if pressure is None:
+        pressure = p_atm(z)
     momentum_thrust = -u_e * m_dot
-    pressure_thrust = (pe - p_atm(z)) * Ae
+    pressure_thrust = (pe - pressure) * Ae
     return momentum_thrust + pressure_thrust
+
+
+def diagnostics_snapshot(t, y):
+    _, z, vx, vz, m = y
+
+    m_eff = max(m_dry, m)
+    m_dot = mdot(t, m_eff)
+    atmosphere = atmosphere_state(z)
+    temperature = atmosphere["temperature"]
+    pressure = atmosphere["pressure"]
+    rho_loc = atmosphere["density"]
+    sound_speed = atmosphere["sound_speed"]
+    thrust = thrust_from_mdot(m_dot, z, pressure=pressure)
+
+    wind_x = wind.wind_x(z, t)
+    wind_z = wind.wind_z(z, t)
+    vx_air, vz_air = wind.relative_velocity(z, vx, vz, t)
+    v_air = np.sqrt(vx_air * vx_air + vz_air * vz_air)
+    q = 0.5 * rho_loc * v_air * v_air
+    v_abs = np.sqrt(vx * vx + vz * vz)
+    mach = 0.0 if sound_speed <= 0.0 else v_air / sound_speed
+    cd_local = drag_coefficient(mach)
+
+    return {
+        "m_eff": m_eff,
+        "m_dot": m_dot,
+        "thrust": thrust,
+        "temperature": temperature,
+        "pressure": pressure,
+        "rho": rho_loc,
+        "sound_speed": sound_speed,
+        "wind_x": wind_x,
+        "wind_z": wind_z,
+        "vx_air": vx_air,
+        "vz_air": vz_air,
+        "v_rel": v_air,
+        "q": q,
+        "v_abs": v_abs,
+        "mach": mach,
+        "Cd": cd_local,
+    }
+
+
+def record_diagnostics(diagnostics, t, y):
+    if diagnostics is None:
+        return
+
+    state = diagnostics_snapshot(t, y)
+    diagnostics["v_rel"].append(state["v_rel"])
+    diagnostics["q"].append(state["q"])
+    diagnostics["wind_x"].append(state["wind_x"])
+    diagnostics["wind_z"].append(state["wind_z"])
+    diagnostics["thrust"].append(state["thrust"])
+    diagnostics["v_abs"].append(state["v_abs"])
+    diagnostics["temperature"].append(state["temperature"])
+    diagnostics["pressure"].append(state["pressure"])
+    diagnostics["rho"].append(state["rho"])
+    diagnostics["sound_speed"].append(state["sound_speed"])
+    diagnostics["m_dot"].append(state["m_dot"])
+    diagnostics["mach"].append(state["mach"])
+    diagnostics["Cd"].append(state["Cd"])
 
 def rhs(t, y):
     # This function dy/dt = f(t,y) where y = (x, z, vx, vz, m)
     x, z, vx, vz, m = y
 
-    m_eff = max(m_dry, m)
-    m_dot = mdot(t, m_eff)
-    T = thrust_from_mdot(m_dot, z)
+    state = diagnostics_snapshot(t, y)
+    m_eff = state["m_eff"]
+    m_dot = state["m_dot"]
+    T = state["thrust"]
+    rho_loc = state["rho"]
+    vx_air = state["vx_air"]
+    vz_air = state["vz_air"]
+    v_air = state["v_rel"]
+    cd_local = state["Cd"]
 
-    v = np.sqrt(vx**2 + vz**2)
-    rho_loc = rho_atm(z)
-
-    Fdx = -0.5 * Cd * rho_loc * A * vx * v
-    Fdz = -0.5 * Cd * rho_loc * A * vz * v
+    Fdx = -0.5 * cd_local * rho_loc * A * vx_air * v_air
+    Fdz = -0.5 * cd_local * rho_loc * A * vz_air * v_air
 
     dxdt = vx
     dzdt = vz
@@ -93,7 +207,7 @@ def rk4_step(t, y, dt):
     return y + (dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
 
 
-def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
+def solver(x0, z0, vx0, vz0, m0, dt, max_iter, return_diagnostics=False):
     t = 0.0
     y = np.array([x0, z0, vx0, vz0, m0], dtype=float)
 
@@ -103,6 +217,24 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
     vx_values = []
     vz_values = []
     m_values = []
+    diagnostics = None
+
+    if return_diagnostics:
+        diagnostics = {
+            "v_rel": [],
+            "q": [],
+            "wind_x": [],
+            "wind_z": [],
+            "thrust": [],
+            "v_abs": [],
+            "temperature": [],
+            "pressure": [],
+            "rho": [],
+            "sound_speed": [],
+            "m_dot": [],
+            "mach": [],
+            "Cd": [],
+        }
 
     for _ in range(max_iter):
         x, z, vx, vz, m = y
@@ -113,6 +245,7 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
         vx_values.append(vx)
         vz_values.append(vz)
         m_values.append(m)
+        record_diagnostics(diagnostics, t, y)
 
         y_new = rk4_step(t, y, dt)
         y_new[4] = max(m_dry, y_new[4])
@@ -133,12 +266,13 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
             vx_values.append(y_impact[2])
             vz_values.append(y_impact[3])
             m_values.append(y_impact[4])
+            record_diagnostics(diagnostics, t_impact, y_impact)
             break
 
         y = y_new
         t = t_new
 
-    return (
+    result = (
         np.array(t_values),
         np.array(x_values),
         np.array(z_values),
@@ -147,14 +281,33 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter):
         np.array(m_values),
     )
 
+    if diagnostics is None:
+        return result
+
+    diagnostics = {
+        key: np.array(values, dtype=float)
+        for key, values in diagnostics.items()
+    }
+    return result + (diagnostics,)
+
 
 
 
 def main():
     import animation
     # solving vector. 
-    t, x, z, vx, vz, m = solver(x0, z0, vx0, vz0, m0, dt, max_iter)
+    t, x, z, vx, vz, m, diagnostics = solver(
+        x0,
+        z0,
+        vx0,
+        vz0,
+        m0,
+        dt,
+        max_iter,
+        return_diagnostics=True,
+    )
     _ani = animation.animate_rocket(dt, t, x, z, vx, vz, m)
+    return diagnostics
 
 if __name__ == "__main__":
     main()
