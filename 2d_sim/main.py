@@ -293,9 +293,7 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter, return_diagnostics=False):
 
 
 
-def main():
-    import animation
-    # solving vector. 
+def main(*, export_only=False, matplotlib=False):
     t, x, z, vx, vz, m, diagnostics = solver(
         x0,
         z0,
@@ -306,8 +304,29 @@ def main():
         max_iter,
         return_diagnostics=True,
     )
-    _ani = animation.animate_rocket(dt, t, x, z, vx, vz, m)
+    if matplotlib:
+        import animation
+        animation.animate_rocket(dt, t, x, z, vx, vz, m)
+    else:
+        from pathlib import Path
+        import webbrowser
+
+        from replay import export_replay
+
+        project = Path(__file__).resolve().parent.parent
+        export_replay(project / "viewer" / "flight-data.js", (t, x, z, vx, vz, m), t_b, dt)
+        if not export_only:
+            page = project / "index.html"
+            if not webbrowser.open(page.as_uri()):
+                print(f"Flugansicht im Browser öffnen: {page}")
     return diagnostics
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="2D-Flug berechnen und anzeigen.")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--export", action="store_true", help="Nur die Daten der Browseransicht aktualisieren.")
+    mode.add_argument("--matplotlib", action="store_true", help="Die Matplotlib-Animation öffnen.")
+    args = parser.parse_args()
+    main(export_only=args.export, matplotlib=args.matplotlib)

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#113b3d">
+  <meta name="description" content="Erkunde einen simulierten Raketenflug in zwei Dimensionen. Flugbahn, Messwerte und Zeitverlauf sind synchron abspielbar.">
+  <title>Fluganalyse · FlightSim Lab</title>
+  <link rel="icon" href="viewer/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="viewer/style.css">
+  <script src="viewer/flight-data.js" defer></script>
+  <script src="viewer/scene.js" defer></script>
+  <script src="viewer/telemetry.js" defer></script>
+  <script src="viewer/app.js" defer></script>
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-13-2 16"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M6 18 18 6M7 6h11v11"/></symbol>
+    <symbol id="i-orbit" viewBox="0 0 24 24"><path d="M3 4v16h18M5 16c4-14 10-15 15 0"/></symbol>
+    <symbol id="i-meter" viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4c5-4 9 4 15 0v9c-6 4-10-4-15 0"/></symbol>
+    <symbol id="i-plot" viewBox="0 0 24 24"><path d="M3 4v16h18M6 15l4-5 4 2 6-7"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><path d="M8 3v18m8-18v18M3 8h18M3 16h18"/></symbol>
+    <symbol id="i-trail" viewBox="0 0 24 24"><path d="M3 18c3 0 3-3 4-5m3-5c1-2 3-3 5-3m4 3 2 3"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3v14H7zm7 0h3v14h-3z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M5 4v6h6M5.4 9a7.5 7.5 0 1 1-.3 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></symbol>
+  </svg>
+  <header class="topbar">
+    <div class="wrap nav">
+      <div class="wordmark"><img src="viewer/mark.svg" width="35" height="35" alt="">FlightSim <span>Lab</span></div>
+      <a class="repo-link" href="https://github.com/chabane95/flightSim-lab"><svg class="icon"><use href="#i-code"/></svg>GitHub<svg class="tiny"><use href="#i-arrow"/></svg></a>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="intro">
+      <div><h1>Fluganalyse</h1><p>Ein Raketenflug in zwei Dimensionen – vom Start bis zum Bodenkontakt.</p></div>
+      <div class="model-note"><span class="model-symbol" aria-hidden="true">x<span>/</span>z</span><div><b>2D-Flugmodell</b><small>RK4 · Zeitschritt <span id="model-step">–</span> ms</small></div></div>
+    </section>
+    <noscript><p class="notice">Bitte aktiviere JavaScript, um den Flug abzuspielen.</p></noscript>
+    <p id="load-error" class="notice" role="alert" hidden></p>
+    <div class="dashboard">
+      <section class="card trajectory">
+        <div class="card-head">
+          <h2><svg class="icon"><use href="#i-orbit"/></svg>Flugbahn</h2>
+          <div class="layer-controls" aria-label="Diagrammansicht">
+            <button id="grid-toggle" aria-pressed="true"><svg class="tiny"><use href="#i-grid"/></svg>Raster</button>
+            <button id="trail-toggle" aria-pressed="true" title="Bisher geflogene Spur anzeigen"><svg class="tiny"><use href="#i-trail"/></svg>Spur</button>
+            <button id="equal-toggle" aria-label="Gleicher Maßstab für beide Achsen" title="Gleicher Maßstab für beide Achsen" aria-pressed="false">1:1</button>
+          </div>
+        </div>
+        <div class="plot-wrap">
+          <div id="scene" aria-label="Flugbahn in der x-z-Ebene"></div>
+          <div class="legend"><span>Flugspur</span><span>Weiterer Verlauf</span></div>
+        </div>
+        <div class="transport">
+          <div class="time-row">
+            <label for="timeline">Flugzeit</label>
+            <span class="time-readout"><strong id="time">0,00</strong> / <span id="duration">–</span> s</span>
+          </div>
+          <input id="timeline" type="range" min="0" max="1" step="any" value="0" aria-label="Zeitpunkt im Flug">
+          <div class="transport-row">
+            <button id="play" class="primary"><svg class="icon"><use id="play-icon" href="#i-play"/></svg><span id="play-text">Abspielen</span></button>
+            <button id="reset" class="reset" title="Zum Start" aria-label="Zum Start"><svg class="icon"><use href="#i-reset"/></svg></button>
+            <label class="speed-label" for="rate">Tempo</label>
+            <div class="select-wrap"><select id="rate" aria-label="Wiedergabetempo"><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><svg class="tiny"><use href="#i-down"/></svg></div>
+          </div>
+        </div>
+      </section>
+      <aside class="side">
+        <section class="card">
+          <div class="card-head"><h2><svg class="icon"><use href="#i-meter"/></svg>Flugdaten</h2><span class="phase" id="phase" role="status">Start</span></div>
+          <dl class="readings">
+            <div><dt>Höhe</dt><dd><span id="altitude">–</span> <small>m</small></dd></div>
+            <div><dt>Geschwindigkeit</dt><dd><span id="speed">–</span> <small>m/s</small></dd></div>
+            <div><dt>x-Position</dt><dd><span id="distance">–</span> <small>m</small></dd></div>
+            <div><dt>Masse</dt><dd><span id="mass">–</span> <small>kg</small></dd></div>
+          </dl>
+        </section>
+        <section class="card events">
+          <div class="card-head"><h2><svg class="icon"><use href="#i-flag"/></svg>Flugereignisse</h2></div>
+          <div class="event-list" id="event-list" aria-label="Zu einem Flugereignis springen"></div>
+        </section>
+      </aside>
+      <section class="card telemetry">
+        <div class="card-head">
+          <h2><svg class="icon"><use href="#i-plot"/></svg>Zeitverlauf</h2>
+          <div class="metric-tabs" role="group" aria-label="Messgröße im Zeitverlauf">
+            <button data-metric="altitude" aria-pressed="true">Höhe</button><button data-metric="speed" aria-pressed="false">Geschwindigkeit</button><button data-metric="mass" aria-pressed="false">Masse</button>
+          </div>
+        </div>
+        <div id="telemetry"></div>
+      </section>
+    </div>
+  </main>
+  <footer class="wrap"><span>FlightSim Lab</span><a href="https://github.com/chabane95/flightSim-lab#readme">Dokumentation <svg class="tiny"><use href="#i-arrow"/></svg></a></footer>
+</body>
+</html>

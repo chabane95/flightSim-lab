@@ -9,7 +9,7 @@ Ziel:
 
 Fuer eine ausfuehrliche technische Zusammenfassung (Projektstand, Modellgleichungen, Aenderungen, Validierung, Test-Coverage) siehe:
 
-- [doc.md](/Users/aminechabane/Desktop/rocket1D/doc.md)
+- [doc.md](../doc.md)
 
 ## 1) Projektumfang (Version 1)
 
