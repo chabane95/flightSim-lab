@@ -49,8 +49,8 @@
     const scene = window.FlightScene.create(byId('scene'), flight);
     const telemetry = window.FlightTelemetry.create(byId('telemetry'), flight, seek);
     const timeline = byId('timeline');
-    const settings = { grid: true, trail: true, equal: false };
-    let metric = 'altitude';
+    const settings = { grid: true, trail: true, equal: true };
+    let metric = 'all';
     let time = 0, frame = 0, previousStamp = 0, playing = false;
     timeline.max = String(duration);
     byId('duration').textContent = precision(duration);
@@ -65,15 +65,13 @@
       const button = document.createElement('button');
       button.className = 'event';
       button.title = 'Zu ' + event.name + ' springen';
-      const dot = document.createElement('span');
-      dot.className = 'event-dot';
       const label = document.createElement('span');
       label.className = 'event-name';
       label.textContent = event.name;
       const stamp = document.createElement('time');
       stamp.dateTime = 'PT' + event.t + 'S';
       stamp.textContent = precision(event.t) + ' s';
-      button.append(dot, label, stamp);
+      button.append(label, stamp);
       button.addEventListener('click', () => seek(event.t));
       byId('event-list').appendChild(button);
       event.button = button;
@@ -90,6 +88,7 @@
       timeline.style.setProperty('--progress', (100 * time / duration) + '%');
       timeline.setAttribute('aria-valuetext', precision(time) + ' Sekunden');
       byId('time').textContent = precision(time);
+      byId('table-time').textContent = precision(time);
       byId('altitude').textContent = decimal(sample.z);
       byId('speed').textContent = decimal(Math.hypot(sample.vx, sample.vz));
       byId('distance').textContent = decimal(sample.x);
@@ -165,12 +164,10 @@
         show();
       });
     }
-    const metricButtons = document.querySelectorAll('[data-metric]');
-    metricButtons.forEach(button => button.addEventListener('click', () => {
-      metric = button.dataset.metric;
-      metricButtons.forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    byId('metric').addEventListener('change', event => {
+      metric = event.target.value;
       show();
-    }));
+    });
     show();
   }
 

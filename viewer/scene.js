@@ -3,11 +3,11 @@
   'use strict';
 
   const ns = 'http://www.w3.org/2000/svg';
-  const ink = '#193d47';
-  const accent = '#007d79';
-  const muted = '#536e78';
-  const mono = 'ui-monospace, SFMono-Regular, Consolas, monospace';
-  const number = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+  const ink = '#272925';
+  const muted = '#5c5e58';
+  const current = '#b33f29';
+  const serif = 'Georgia, "Times New Roman", serif';
+  const number = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });
   let sceneId = 0;
 
   function element(parent, tag, attrs = {}, content) {
@@ -48,23 +48,16 @@
 
     const svg = element(container, 'svg', {
       viewBox: '0 0 720 360', width: '100%', height: '100%', role: 'img',
-      'aria-labelledby': `${id}-title ${id}-description`, 'font-family': mono
+      'aria-labelledby': `${id}-title ${id}-description`, 'font-family': serif
     });
     svg.style.display = 'block';
     element(svg, 'title', { id: `${id}-title` }, 'Flugbahn in der Seitenansicht');
     element(svg, 'desc', { id: `${id}-description` },
       `Horizontale Position und Höhe in Metern. Der höchste Punkt liegt bei ${number.format(peak.z)} Metern.`);
-    const defs = element(svg, 'defs');
-    const hatch = element(defs, 'pattern', { id: `${id}-ground`, width: 7, height: 7, patternUnits: 'userSpaceOnUse' });
-    element(hatch, 'path', { d: 'M-2 2 L2 -2 M0 7 L7 0 M5 9 L9 5', fill: 'none', stroke: '#b1c5c8', 'stroke-width': 0.8 });
-    const wash = element(defs, 'linearGradient', { id: `${id}-sky`, x2: 0, y2: 1, gradientUnits: 'objectBoundingBox' });
-    element(wash, 'stop', { offset: 0, 'stop-color': '#f1f7f8' });
-    element(wash, 'stop', { offset: 1, 'stop-color': '#fbfdfc' });
-
     const root = element(svg, 'g');
     let grid, travelled, upcoming, marker, projectX, projectZ;
     let width, height, equalScale, points;
-    let time = first.t, sample = first, settings = { grid: true, trail: true, equal: false };
+    let time = first.t, sample = first, settings = { grid: true, trail: true, equal: true };
     let cachedIndex, prefix, suffix;
 
     function drawFlight() {
@@ -87,15 +80,8 @@
       travelled.style.display = settings.trail ? '' : 'none';
       grid.style.display = settings.grid ? '' : 'none';
 
-      // The symbol follows the tangent of the plotted path. Axes can have different scales.
-      let dx = sample.vx, dz = sample.vz;
-      if (Math.hypot(dx, dz) < 0.2) {
-        const next = samples.find(point => point.t > time && point.z > sample.z + 0.25);
-        dx = next ? next.x - sample.x : 0;
-        dz = next ? next.z - sample.z : 1;
-      }
-      const heading = Math.atan2(projectZ(dz) - projectZ(0), projectX(dx) - projectX(0)) * 180 / Math.PI;
-      marker.setAttribute('transform', `translate(${x} ${y}) rotate(${heading})`);
+      marker.setAttribute('cx', x);
+      marker.setAttribute('cy', y);
     }
 
     function resize() {
@@ -109,51 +95,63 @@
       svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
       root.replaceChildren();
       const small = w < 420;
-      const left = small ? 40 : 54, right = w - (small ? 14 : 25);
-      const top = 30, ground = h - 53;
+      let left = small ? 44 : 54, right = w - (small ? 22 : 28);
+      let top = 36, ground = h - 48;
       const spanX = Math.max(1, bounds.right - bounds.left);
-      let xMin = bounds.left - 0.048 * spanX, xMax = bounds.right + 0.05 * spanX;
-      let zMax = Math.max(1, bounds.high) * 1.18;
+      let xMin = bounds.left - 0.04 * spanX, xMax = bounds.right + 0.04 * spanX;
+      let zMax = Math.max(1, bounds.high) * 1.12;
       if (equalScale) {
-        const metresPerPixel = Math.max((xMax - xMin) / (right - left), zMax / (ground - top));
+        const availableWidth = right - left, availableHeight = ground - top;
+        const scale = Math.min(availableWidth / (xMax - xMin), availableHeight / zMax);
+        // Letterbox the data range. A small minimum axis length leaves room for tick labels
+        // even when the trajectory is almost perfectly vertical or horizontal.
+        const plotWidth = Math.max((xMax - xMin) * scale, Math.min(availableWidth, 88));
+        const plotHeight = Math.max(zMax * scale, Math.min(availableHeight, 65));
         const xCentre = (xMin + xMax) / 2;
-        const halfWidth = (right - left) * metresPerPixel / 2;
-        xMin = xCentre - halfWidth;
-        xMax = xCentre + halfWidth;
-        zMax = (ground - top) * metresPerPixel;
+        xMin = xCentre - plotWidth / (2 * scale);
+        xMax = xCentre + plotWidth / (2 * scale);
+        zMax = plotHeight / scale;
+        left += (availableWidth - plotWidth) / 2;
+        right = left + plotWidth;
+        top += (availableHeight - plotHeight) / 2;
+        ground = top + plotHeight;
       }
       projectX = x => left + (x - xMin) * (right - left) / (xMax - xMin);
       projectZ = z => ground - z * (ground - top) / zMax;
 
-      element(root, 'rect', { x: 0, y: 0, width: w, height: h, fill: `url(#${id}-sky)` });
+      element(root, 'rect', { x: 0, y: 0, width: w, height: h, fill: 'white' });
       grid = element(root, 'g', { 'aria-hidden': 'true' });
-      const axes = element(root, 'g', { fill: muted, 'font-size': small ? 10 : 11 });
-      const xStep = tickStep(xMax - xMin, (right - left) / (small ? 67 : 94));
-      const zStep = tickStep(zMax, (ground - top) / 62);
+      const axes = element(root, 'g', { fill: muted, 'font-size': small ? 11 : 12 });
+      const xStep = tickStep(xMax - xMin, (right - left) / 64);
+      const zStep = tickStep(zMax, (ground - top) / 54);
       function gridLines(min, max, step, horizontal) {
         const project = horizontal ? projectZ : projectX;
-        for (const value of ticks(min, max, step / 4)) {
+        for (const value of ticks(min, max, step)) {
           const p = project(value);
-          const major = Math.abs(value / step - Math.round(value / step)) < 1e-7;
           const d = horizontal ? `M${left} ${p}H${right}` : `M${p} ${top}V${ground}`;
-          element(grid, 'path', { d, fill: 'none', stroke: major ? '#c9d9dc' : '#e2ebed', 'stroke-width': major ? 0.9 : 0.65 });
-          if (!major) continue;
+          element(grid, 'path', { d, fill: 'none', stroke: '#d7d8d2', 'stroke-width': 0.8, 'stroke-dasharray': '2 4' });
+          const label = Math.abs(value) >= 100000
+            ? value.toExponential(2).replace(/\.?0+e/, 'e').replace('e+', 'e').replace('.', ',')
+            : number.format(value || 0);
           if (horizontal) {
-            element(axes, 'path', { d: `M${left - 4} ${p}h4`, stroke: '#9ab0b5' });
-            element(axes, 'text', { x: left - 8, y: p + 3.5, 'text-anchor': 'end' }, number.format(value));
+            element(axes, 'path', { d: `M${left - 4} ${p}h4`, stroke: ink });
+            element(axes, 'text', { x: left - 8, y: p + 4, 'text-anchor': 'end' }, label);
           } else {
-            element(axes, 'path', { d: `M${p} ${ground + 8}v4`, stroke: '#9ab0b5' });
-            element(axes, 'text', { x: p, y: ground + 24, 'text-anchor': 'middle' }, number.format(value));
+            element(axes, 'path', { d: `M${p} ${ground}v4`, stroke: ink });
+            element(axes, 'text', { x: p, y: ground + 18, 'text-anchor': 'middle' }, label);
           }
         }
       }
       gridLines(xMin, xMax, xStep, false);
       gridLines(0, zMax, zStep, true);
-      element(axes, 'path', { d: `M${left} ${top}V${ground}H${right}`, fill: 'none', stroke: '#94aeb3' });
-      element(axes, 'rect', { x: left, y: ground + 1, width: right - left, height: 7, fill: `url(#${id}-ground)` });
-      const axisLabel = { fill: '#435f68', 'font-size': small ? 9 : 10, 'font-weight': 600, 'letter-spacing': 0.9 };
-      element(axes, 'text', { ...axisLabel, x: left, y: 18 }, 'HÖHE z (m)');
-      element(axes, 'text', { ...axisLabel, x: right, y: h - 9, 'text-anchor': 'end' }, 'HORIZONTALE POSITION x (m)');
+      element(axes, 'path', { d: `M${left} ${top}V${ground}H${right}`, fill: 'none', stroke: ink, 'stroke-width': 1 });
+      function axisLabel(symbol, x, y, anchor) {
+        const label = element(axes, 'text', { x, y, 'text-anchor': anchor, fill: ink, 'font-size': 14 });
+        element(label, 'tspan', { 'font-style': 'italic' }, symbol);
+        element(label, 'tspan', {}, ' / m');
+      }
+      axisLabel('z', left, top - 12, 'start');
+      axisLabel('x', (left + right) / 2, ground + 39, 'middle');
 
       // Thin densely sampled runs to about one point per screen pixel during playback.
       points = [];
@@ -166,33 +164,45 @@
         prevY = y;
       }
       cachedIndex = -1;
-      upcoming = element(root, 'polyline', { fill: 'none', stroke: '#408a8b', 'stroke-width': 2, 'stroke-dasharray': '4 5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
-      travelled = element(root, 'polyline', { fill: 'none', stroke: accent, 'stroke-width': 2.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+      upcoming = element(root, 'polyline', { fill: 'none', stroke: '#575953', 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'stroke-linejoin': 'round' });
+      travelled = element(root, 'polyline', { fill: 'none', stroke: ink, 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
 
       for (const end of [first, last]) {
-        element(root, 'circle', { cx: projectX(end.x), cy: projectZ(end.z), r: 3.6, fill: '#f6faf9', stroke: accent, 'stroke-width': 1.6 });
+        element(root, 'circle', { cx: projectX(end.x), cy: projectZ(end.z), r: 2.7, fill: 'white', stroke: ink, 'stroke-width': 1.1 });
       }
       const peakX = projectX(peak.x), peakY = projectZ(peak.z);
-      const direction = peakX + 94 < right ? 1 : -1;
-      const labelX = peakX + direction * 20;
-      const labelY = Math.max(22, peakY - 22);
-      const anchor = direction === 1 ? 'start' : 'end';
-      element(root, 'path', { d: `M${peakX} ${peakY - 4}v-4L${labelX - direction * 5} ${labelY + 3}`, fill: 'none', stroke: '#729295', 'stroke-width': 1 });
-      element(root, 'text', { x: labelX, y: labelY, 'text-anchor': anchor, fill: muted, 'font-size': 9, 'letter-spacing': 0.7 }, 'SCHEITELPUNKT');
-      element(root, 'text', { x: labelX, y: labelY + 14, 'text-anchor': anchor, fill: ink, 'font-size': 12, 'font-weight': 600 }, `${number.format(peak.z)} m`);
-      element(root, 'circle', { cx: peakX, cy: peakY, r: 3.7, fill: 'white', stroke: accent, 'stroke-width': 1.6 });
+      const heightLabel = `${number.format(peak.z)} m`;
+      const leader = element(root, 'path', { fill: 'none', stroke: '#85877e', 'stroke-width': 0.8 });
+      const label = element(root, 'text', { fill: muted, 'font-size': 12 });
+      let lines = [element(label, 'tspan', {}, `Scheitelpunkt · ${heightLabel}`)];
+      const textWidth = node => node.getComputedTextLength?.() || node.textContent.length * 6.3;
+      const labelLeft = left + 6, labelRight = right - 5;
+      if (textWidth(lines[0]) > labelRight - labelLeft) {
+        lines[0].textContent = 'Scheitelpunkt';
+        lines.push(element(label, 'tspan', {}, heightLabel));
+      }
+      const labelWidth = Math.max(...lines.map(textWidth));
+      let labelX = peakX - labelWidth / 2;
+      if (peakX + 14 + labelWidth <= labelRight) labelX = peakX + 14;
+      else if (peakX - 14 - labelWidth >= labelLeft) labelX = peakX - 14 - labelWidth;
+      labelX = Math.max(labelLeft, Math.min(labelX, labelRight - labelWidth));
+      const labelBottom = Math.max(16 + (lines.length - 1) * 14, peakY - 15);
+      lines.forEach((line, index) => {
+        line.setAttribute('x', labelX);
+        line.setAttribute('y', labelBottom - (lines.length - 1 - index) * 14);
+      });
+      const leaderX = Math.max(labelX, Math.min(peakX, labelX + labelWidth));
+      leader.setAttribute('d', `M${peakX} ${peakY - 3}L${leaderX} ${labelBottom + 3}`);
+      element(root, 'circle', { cx: peakX, cy: peakY, r: 2.7, fill: 'white', stroke: ink, 'stroke-width': 1.1 });
 
-      marker = element(root, 'g', { 'aria-hidden': 'true' });
-      element(marker, 'circle', { r: 15, fill: '#d6efed', 'fill-opacity': 0.65, stroke: accent, 'stroke-opacity': 0.22, 'stroke-width': 1 });
-      element(marker, 'path', { d: 'M13 0Q8 -4 0 -3L-3 -3L-8 -7L-7 -2L-10 -1L-10 1L-7 2L-8 7L-3 3L0 3Q8 4 13 0Z', fill: ink, stroke: '#f8fffd', 'stroke-width': 1.1, 'stroke-linejoin': 'round' });
-      element(marker, 'circle', { cx: 4.5, cy: 0, r: 1.45, fill: '#a0e1da' });
+      marker = element(root, 'circle', { r: 4.8, fill: current, stroke: 'white', 'stroke-width': 1.4, 'aria-hidden': 'true' });
       drawFlight();
     }
 
     function update(nextTime, nextSample, nextSettings) {
       time = nextTime;
       sample = nextSample;
-      settings = { grid: nextSettings?.grid ?? true, trail: nextSettings?.trail ?? true, equal: nextSettings?.equal ?? false };
+      settings = { grid: nextSettings?.grid ?? true, trail: nextSettings?.trail ?? true, equal: nextSettings?.equal ?? true };
       if (settings.equal !== equalScale) resize();
       else drawFlight();
     }
