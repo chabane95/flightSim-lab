@@ -1,5 +1,10 @@
+from pathlib import Path
+
 import numpy as np
+
 import wind
+
+DEFAULT_OUTPUT = Path(__file__).resolve().parents[1] / "media" / "flugbahn.gif"
 
 g = 9.81
 A = 0.02
@@ -291,10 +296,10 @@ def solver(x0, z0, vx0, vz0, m0, dt, max_iter, return_diagnostics=False):
     return result + (diagnostics,)
 
 
+def main(output=DEFAULT_OUTPUT):
+    from animation import save_flight_gif
 
-
-def main(*, export_only=False, matplotlib=False):
-    t, x, z, vx, vz, m, diagnostics = solver(
+    t, x, z, _vx, _vz, _mass, diagnostics = solver(
         x0,
         z0,
         vx0,
@@ -304,29 +309,21 @@ def main(*, export_only=False, matplotlib=False):
         max_iter,
         return_diagnostics=True,
     )
-    if matplotlib:
-        import animation
-        animation.animate_rocket(dt, t, x, z, vx, vz, m)
-    else:
-        from pathlib import Path
-        import webbrowser
-
-        from replay import export_replay
-
-        project = Path(__file__).resolve().parent.parent
-        export_replay(project / "viewer" / "flight-data.js", (t, x, z, vx, vz, m), t_b, dt)
-        if not export_only:
-            page = project / "index.html"
-            if not webbrowser.open(page.as_uri()):
-                print(f"Flugansicht im Browser öffnen: {page}")
+    save_flight_gif(t, x, z, Path(output))
     return diagnostics
+
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="2D-Flug berechnen und anzeigen.")
-    mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--export", action="store_true", help="Nur die Daten der Browseransicht aktualisieren.")
-    mode.add_argument("--matplotlib", action="store_true", help="Die Matplotlib-Animation öffnen.")
+    parser = argparse.ArgumentParser(description="2D-Flug berechnen und als animiertes GIF speichern.")
+    parser.add_argument(
+        "--output", type=Path, default=DEFAULT_OUTPUT, metavar="PFAD",
+        help="Ziel für die GIF-Datei (Standard: media/flugbahn.gif im Repository).",
+    )
     args = parser.parse_args()
-    main(export_only=args.export, matplotlib=args.matplotlib)
+    try:
+        main(args.output)
+    except OSError as error:
+        parser.exit(1, f"GIF konnte nicht gespeichert werden: {error}\n")
+    print(f"GIF gespeichert: {args.output}")

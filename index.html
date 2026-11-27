@@ -3,100 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#ffffff">
-  <meta name="description" content="Zweidimensionales Raketenflugmodell. Interaktive Darstellung der Flugbahn und der Zeitverläufe von Höhe, Geschwindigkeit und Masse.">
-  <title>Raketenflug in der x-z-Ebene · FlightSim Lab</title>
-  <link rel="icon" href="viewer/mark.svg?v=2" type="image/svg+xml">
-  <link rel="stylesheet" href="viewer/style.css?v=2">
-  <script src="viewer/flight-data.js" defer></script>
-  <script src="viewer/scene.js?v=2" defer></script>
-  <script src="viewer/telemetry.js?v=2" defer></script>
-  <script src="viewer/app.js?v=2" defer></script>
+  <title>2D-Flugbahn · FlightSim Lab</title>
+  <meta http-equiv="refresh" content="0; url=media/flugbahn.gif">
 </head>
 <body>
-  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8z"/></symbol>
-    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3v14H7zm7 0h3v14h-3z"/></symbol>
-    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M5 4v6h6M5.4 9a7.5 7.5 0 1 1-.3 6" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
-  </svg>
-  <header class="masthead">
-    <span class="publication">FlightSim Lab</span>
-    <a href="https://github.com/chabane95/flightSim-lab">Repository <span aria-hidden="true">↗</span></a>
-  </header>
-  <main>
-    <header class="intro">
-      <div>
-        <h1>Raketenflug in der <span class="equation"><i>x</i>-<i>z</i></span>-Ebene</h1>
-        <p>Simulation mit variabler Masse, höhenabhängiger Luftdichte und horizontalem Wind.</p>
-      </div>
-      <dl class="method">
-        <div><dt>Integration</dt><dd>Runge–Kutta 4</dd></div>
-        <div><dt>Zeitschritt</dt><dd><i>Δt</i> = <span id="model-step">–</span> ms</dd></div>
-      </dl>
-    </header>
-    <noscript><p class="notice">JavaScript wird für die interaktiven Abbildungen benötigt.</p></noscript>
-    <p id="load-error" class="notice" role="alert" hidden></p>
-    <div class="figures">
-      <figure>
-        <figcaption><span class="figure-number">Abb. 1</span><h2>Flugbahn</h2></figcaption>
-        <div class="figure-options" role="group" aria-label="Darstellung der Flugbahn">
-          <button id="grid-toggle" aria-pressed="true">Raster</button>
-          <button id="trail-toggle" aria-pressed="true" title="Bisher zurückgelegte Flugbahn">Spur</button>
-          <button id="equal-toggle" aria-label="Gleicher Maßstab für beide Achsen" title="Gleicher Maßstab für beide Achsen" aria-pressed="true">Maßstab 1:1</button>
-        </div>
-        <div id="scene" class="plot" aria-label="Flugbahn in der x-z-Ebene"></div>
-        <div class="figure-legend" aria-label="Legende der Flugbahn">
-          <span class="line">Zurückgelegt</span><span class="line dashed">Weiterer Verlauf</span><span class="point">Zeitmarke</span>
-        </div>
-      </figure>
-      <figure>
-        <figcaption><span class="figure-number">Abb. 2</span><h2>Zeitverläufe</h2></figcaption>
-        <div class="figure-options">
-          <label for="metric">Größe</label>
-          <select id="metric">
-            <option value="all">Alle Größen</option><option value="altitude">Höhe</option>
-            <option value="speed">Geschwindigkeit</option><option value="mass">Masse</option>
-          </select>
-        </div>
-        <div id="telemetry" class="plot"></div>
-        <p class="figure-note">Die Zeitmarke lässt sich in allen Kurven gemeinsam verschieben.</p>
-      </figure>
-    </div>
-    <section class="transport" aria-label="Zeitsteuerung">
-      <div class="transport-buttons">
-        <button id="play" class="primary"><svg><use id="play-icon" href="#i-play"/></svg><span id="play-text">Abspielen</span></button>
-        <button id="reset" title="Zum Start" aria-label="Zum Start"><svg><use href="#i-reset"/></svg></button>
-      </div>
-      <div class="time-control">
-        <label for="timeline"><i>t</i> = <strong id="time">0,00</strong> s <span class="total">/ <span id="duration">–</span> s</span></label>
-        <input id="timeline" type="range" min="0" max="1" step="any" value="0" aria-label="Zeitpunkt im Flug">
-      </div>
-      <label class="rate-control">Tempo <select id="rate"><option value="0.25">0,25×</option><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
-    </section>
-    <div class="data-sections">
-      <section>
-        <header class="table-heading"><h2>Zustand der Rakete</h2><span class="table-time"><i>t</i> = <span id="table-time">0,00</span> s · <span id="phase" role="status">Start</span></span></header>
-        <table class="readings">
-          <thead><tr><th scope="col">Größe</th><th scope="col">Symbol</th><th scope="col">Wert</th><th scope="col">Einheit</th></tr></thead>
-          <tbody>
-            <tr><th scope="row">Horizontale Position</th><td><i>x</i></td><td id="distance">–</td><td>m</td></tr>
-            <tr><th scope="row">Höhe</th><td><i>z</i></td><td id="altitude">–</td><td>m</td></tr>
-            <tr><th scope="row">Geschwindigkeit über Grund</th><td><i>v</i></td><td id="speed">–</td><td>m/s</td></tr>
-            <tr><th scope="row">Masse</th><td><i>m</i></td><td id="mass">–</td><td>kg</td></tr>
-          </tbody>
-        </table>
-      </section>
-      <section>
-        <header class="table-heading"><h2>Flugereignisse</h2></header>
-        <div class="event-labels"><span>Ereignis auswählen</span><span>Flugzeit</span></div>
-        <div id="event-list" aria-label="Zu einem Flugereignis springen"></div>
-      </section>
-    </div>
-    <details class="model-details">
-      <summary>Rechenmodell und Datengrundlage</summary>
-      <p>Der Solver integriert die Position (<i>x</i>, <i>z</i>), die Geschwindigkeitskomponenten und die Masse mit dem klassischen Runge–Kutta-Verfahren vierter Ordnung. Der Luftwiderstand hängt von der Geschwindigkeit relativ zum Wind ab. Der Lauf endet beim absteigenden Nulldurchgang der Höhe.</p>
-      <p>Die Ansicht interpoliert zwischen den gespeicherten Stützpunkten. Scheitelpunkt und Bodenkontakt sind im Datensatz separat enthalten. Während des Schubaufbaus unterschreitet die Modellhöhe zu Beginn kurz das Bodenniveau um rund 3 cm. <a href="https://github.com/chabane95/flightSim-lab/blob/main/2d_sim/main.py">Modellcode ↗</a></p>
-    </details>
-  </main>
+  <p><a href="media/flugbahn.gif">Die animierte 2D-Flugbahn als GIF öffnen</a></p>
 </body>
 </html>

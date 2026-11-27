@@ -1,6 +1,6 @@
-# Rocket1D - Projektbewertung und Aenderungsdokumentation
+# Notizen zur ersten 1D-Version und zum Übergang auf 2D
 
-Stand: Working Tree vom 2026-03-13 (lokal, nicht committed)
+Diese Notizen halten den Zwischenstand vom 13. März 2026 fest. Den heutigen Einstieg mit GIF, Übungen und Ausbauplan findest du im [Lernskript](LERNSKRIPT.md).
 
 ## 0) Ausfuehrliche Gesamtzusammenfassung
 
@@ -199,7 +199,7 @@ $$
 
 ## 3) Dokumentation aller durchgefuehrten Aenderungen
 
-## 3.1 [README.md](/Users/aminechabane/Desktop/rocket1D/README.md)
+## 3.1 [README.md](1d_sim/README.md)
 
 - Von 1 Zeile (`# flightSim-lab`) auf vollstaendige Projektdoku erweitert.
 - Inhalte ergaenzt:
@@ -210,7 +210,7 @@ $$
   - Euler-Integration
   - Entwicklungs-Roadmap und Checkliste
 
-## 3.2 [main.py](/Users/aminechabane/Desktop/rocket1D/main.py)
+## 3.2 [main.py](1d_sim/main.py)
 
 Von Platzhalter auf vollstaendigen Simulationscode erweitert.
 
@@ -233,7 +233,7 @@ Wesentliche Aenderungen:
   - `z <= 0`, `t > 0.5`, `v < 0`.
 - Animation aus `main.py` ausgelagert und per Modulaufruf angebunden.
 
-## 3.3 [animation.py](/Users/aminechabane/Desktop/rocket1D/animation.py) (neu)
+## 3.3 [animation.py](1d_sim/animation.py) (neu)
 
 Neue Datei fuer Visualisierung:
 
@@ -270,7 +270,7 @@ Interpretation:
 
 ## 6) Wichtige neue Aenderungen (2D-Ausbau, 2026-03-13)
 
-## 6.1 [2d_sim/main.py](/Users/aminechabane/Desktop/rocket1D/2d_sim/main.py)
+## 6.1 [2d_sim/main.py](2d_sim/main.py)
 
 - Von 1D-artigem Entwurf auf echten 2D-Zustandsvektor umgestellt:
   - `y = (x, z, vx, vz, m)`
@@ -294,7 +294,7 @@ Interpretation:
   - `t, x, z, vx, vz, m`
 - Unnoetige Konstante `rho` entfernt (es wird `rho_atm(z)` genutzt)
 
-## 6.2 [2d_sim/animation.py](/Users/aminechabane/Desktop/rocket1D/2d_sim/animation.py) (neu)
+## 6.2 [2d_sim/animation.py](2d_sim/animation.py) (neu)
 
 - Animation aus `main.py` in eigenes Modul ausgelagert (analog 1D-Stil)
 - Neue Funktion:
